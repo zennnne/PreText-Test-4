@@ -148,6 +148,7 @@ function createRenderer(canvas, data) {
     const drawText = makeDrawText(ctx, cache, W);
     const rr = makeRR(ctx);
 
+    // ── Helpers ──
     function panel(x, y, w, h, accent = null) {
       rr(x, y, w, h, 8); ctx.fillStyle = COLORS.panel; ctx.fill();
       ctx.strokeStyle = accent ? accent + '44' : COLORS.panelBorder; ctx.lineWidth = 1; ctx.stroke();
@@ -158,7 +159,7 @@ function createRenderer(canvas, data) {
       const pct = Math.min(value / Math.max(total, 1), 1);
       const bw = w - 20;
       drawText(label, x + 10, y, 11, COLORS.textSecondary);
-      drawText(`${fmt(value)} / ${fmt(total)}  (${(pct*100).toFixed(1)}%)`, x + w - 10, y, 10, COLORS.textMuted, 'right');
+      drawText(`${fmt(value)} / ${fmt(total)}  (${(pct * 100).toFixed(1)}%)`, x + w - 10, y, 10, COLORS.textMuted, 'right');
       rr(x + 10, y + 16, bw, 14, 7); ctx.fillStyle = COLORS.panelBorder; ctx.fill();
       if (pct > 0.001) {
         const g = ctx.createLinearGradient(x + 10, 0, x + 10 + bw * pct, 0);
@@ -168,9 +169,8 @@ function createRenderer(canvas, data) {
       return 36;
     }
 
-    // clear
+    // ── Background ──
     ctx.fillStyle = COLORS.bg; ctx.fillRect(0, 0, W, H);
-    // subtle grid
     ctx.strokeStyle = COLORS.gridLine + '33'; ctx.lineWidth = 0.5;
     for (let i = 0; i < W; i += 32) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke(); }
     for (let i = 0; i < H; i += 32) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke(); }
@@ -179,49 +179,52 @@ function createRenderer(canvas, data) {
     const pad = 12;
     let cy = pad;
 
-    // ── Header
+    // ── 1. Header ──
     drawText('ภาพรวมบัญชีเงินกู้ กยศ.', W / 2, cy, 16, COLORS.white, 'center'); cy += 22;
     drawText(`บัญชี: ${data.meta.accountNo}   วงเงิน: ${fmt(data.meta.totalLoan)} บาท`, W / 2, cy, 11, COLORS.textSecondary, 'center'); cy += 18;
 
-    // ── KPI cards
+    // ── 2. KPI cards ──
     const kpis = [
-      { label: 'ยอดกู้', value: fmt(s.totalLoan), color: COLORS.accent },
-      { label: 'ชำระแล้ว', value: fmt(s.totalPaid), color: COLORS.green },
-      { label: 'คงเหลือ', value: fmt(s.currentBalance), color: COLORS.gold },
-      { label: 'ดอกเบี้ย', value: fmt(s.maxInterestAccum), color: COLORS.purple },
+      { label: 'ยอดกู้ทั้งหมด',  value: fmt(s.totalLoan),        color: COLORS.accent  },
+      { label: 'ชำระแล้วสะสม',   value: fmt(s.totalPaid),        color: COLORS.green   },
+      { label: 'เงินต้นคงเหลือ',  value: fmt(s.currentBalance),   color: COLORS.gold    },
+      { label: 'ดอกเบี้ยสะสม',   value: fmt(s.maxInterestAccum), color: COLORS.purple  },
     ];
     const kpiW = (W - pad * 2 - 9) / 4;
     kpis.forEach((k, i) => {
       const kx = pad + i * (kpiW + 3);
-      panel(kx, cy, kpiW, 68, k.color);
+      panel(kx, cy, kpiW, 72, k.color);
       drawText(k.label, kx + kpiW / 2, cy + 10, 11, COLORS.textSecondary, 'center');
-      drawText(k.value, kx + kpiW / 2, cy + 28, 13, k.color, 'center');
-      drawText('บาท', kx + kpiW / 2, cy + 48, 9, COLORS.textMuted, 'center');
+      drawText(k.value, kx + kpiW / 2, cy + 30, 13, k.color, 'center');
+      drawText('บาท', kx + kpiW / 2, cy + 52, 9, COLORS.textMuted, 'center');
     });
-    cy += 76;
+    cy += 80;
 
-    // ── Progress bars
+    // ── 3. Progress bars ──
     const pbH = 36 * 3 + 24;
     panel(pad, cy, W - pad * 2, pbH, COLORS.teal);
-    drawText('ความคืบหน้า', pad + 10, cy + 10, 12, COLORS.white);
+    drawText('ความคืบหน้าการชำระ', pad + 10, cy + 10, 12, COLORS.white);
     let pcy = cy + 28;
     pcy += drawProgressBar(pad, pcy, W - pad * 2, 'เงินต้นที่ชำระแล้ว', s.principalPaid, s.totalLoan, COLORS.green) + 2;
-    pcy += drawProgressBar(pad, pcy, W - pad * 2, 'ยอดชำระสะสม', s.totalPaid, s.totalLoan + s.maxInterestAccum, COLORS.accent) + 2;
+    pcy += drawProgressBar(pad, pcy, W - pad * 2, 'ยอดชำระสะสมทั้งหมด', s.totalPaid, s.totalLoan + s.maxInterestAccum, COLORS.accent) + 2;
     drawProgressBar(pad, pcy, W - pad * 2, 'ดอกเบี้ยสะสม', s.maxInterestAccum, Math.max(s.totalLoan * 0.05, s.maxInterestAccum), COLORS.purple);
     cy += pbH + 8;
 
-    // ── Bar chart: payments by year
+    // ── 4. Bar chart (timeline) + Payment list  ──
     const yearKeys = Object.keys(s.payByYear).sort();
+    const tlW = Math.floor((W - pad * 2) * 0.6);
+    const lstW = W - pad * 2 - tlW - 8;
+    const rowSectionH = 180;
+
+    // Bar chart
+    panel(pad, cy, tlW, rowSectionH);
+    drawText('ยอดชำระจริงรายปี (บาท)', pad + 10, cy + 10, 12, COLORS.white);
     if (yearKeys.length > 0) {
-      const chartH = Math.max(120, Math.min(200, H - cy - 130));
-      panel(pad, cy, W - pad * 2, chartH);
-      drawText('ยอดชำระรายปี', pad + 10, cy + 10, 12, COLORS.white);
-      const gp = { t: 32, b: 32, l: 50, r: 12 };
-      const gw = W - pad * 2 - gp.l - gp.r, gh = chartH - gp.t - gp.b;
+      const gp = { t: 30, b: 28, l: 46, r: 10 };
+      const gw = tlW - gp.l - gp.r, gh = rowSectionH - gp.t - gp.b;
       const gx = pad + gp.l, gy = cy + gp.t;
       const maxVal = Math.max(...Object.values(s.payByYear), 1);
       const barW = Math.min(gw / yearKeys.length - 6, 36);
-
       for (let i = 0; i <= 3; i++) {
         const ly = gy + gh * (1 - i / 3);
         ctx.strokeStyle = COLORS.gridLine; ctx.lineWidth = 0.5;
@@ -240,23 +243,133 @@ function createRenderer(canvas, data) {
       });
       ctx.strokeStyle = COLORS.panelBorder; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx, gy + gh); ctx.lineTo(gx + gw, gy + gh); ctx.stroke();
-      cy += chartH + 8;
+    } else {
+      drawText('ยังไม่มีข้อมูลการชำระ', pad + tlW / 2, cy + rowSectionH / 2, 12, COLORS.textMuted, 'center');
     }
 
-    // ── Payment list (rest of space)
-    const remH = Math.max(80, H - cy - pad);
-    panel(pad, cy, W - pad * 2, remH);
-    drawText('ประวัติการชำระ', pad + 10, cy + 10, 12, COLORS.white);
-    const rowH = 22, maxRows = Math.floor((remH - 32) / rowH);
-    [...data.payments].reverse().slice(0, maxRows).forEach((p, i) => {
-      const ry = cy + 28 + i * rowH;
-      if (ry + rowH > cy + remH - 6) return;
-      if (i % 2 === 0) { ctx.fillStyle = COLORS.bg + '88'; rr(pad + 6, ry, W - pad * 2 - 12, rowH - 2, 2); ctx.fill(); }
+    // Payment list
+    const lx = pad + tlW + 8;
+    panel(lx, cy, lstW, rowSectionH);
+    drawText('ประวัติการชำระ', lx + 10, cy + 10, 12, COLORS.white);
+    const pRowH = 22, pMaxRows = Math.floor((rowSectionH - 32) / pRowH);
+    [...data.payments].reverse().slice(0, pMaxRows).forEach((p, i) => {
+      const ry = cy + 28 + i * pRowH;
+      if (ry + pRowH > cy + rowSectionH - 6) return;
+      if (i % 2 === 0) { ctx.fillStyle = COLORS.bg + '88'; rr(lx + 4, ry, lstW - 8, pRowH - 2, 2); ctx.fill(); }
       ctx.fillStyle = COLORS.accent;
-      ctx.beginPath(); ctx.arc(pad + 18, ry + rowH / 2, 3, 0, Math.PI * 2); ctx.fill();
-      drawText(p.date || '', pad + 28, ry + 3, 10, COLORS.textSecondary);
-      drawText(fmt(p.amount) + ' บาท', W - pad - 10, ry + 3, 10, COLORS.green, 'right');
+      ctx.beginPath(); ctx.arc(lx + 14, ry + pRowH / 2, 3, 0, Math.PI * 2); ctx.fill();
+      drawText(p.date || '', lx + 24, ry + 3, 10, COLORS.textSecondary);
+      drawText(fmt(p.amount), lx + lstW - 8, ry + 3, 10, COLORS.green, 'right');
     });
+    cy += rowSectionH + 8;
+
+    // ── 5. Schedule table (left) + Interest chart (right) ──
+    const tbW = Math.floor((W - pad * 2) * 0.55);
+    const chW = W - pad * 2 - tbW - 8;
+    const remH = Math.max(200, H - cy - pad);
+
+    // ── 5a. Schedule table ──
+    panel(pad, cy, tbW, remH);
+    drawText('ตารางงวดผ่อนชำระ', pad + 10, cy + 10, 12, COLORS.white);
+    const cols = [
+      { label: 'งวด', w: 0.09 }, { label: 'กำหนดชำระ', w: 0.24 },
+      { label: 'เงินต้น', w: 0.20 }, { label: 'ดอกเบี้ย', w: 0.20 },
+      { label: 'รวม', w: 0.16 },  { label: 'สถานะ', w: 0.11 },
+    ];
+    const tRowH = 22, tx = pad + 6, tw = tbW - 12, theadY = cy + 30;
+    rr(tx, theadY, tw, tRowH, 4); ctx.fillStyle = COLORS.panelBorder; ctx.fill();
+    let cx2 = tx;
+    cols.forEach(c => {
+      drawText(c.label, cx2 + tw * c.w / 2, theadY + 5, 10, COLORS.textSecondary, 'center');
+      cx2 += tw * c.w;
+    });
+    const tMaxRows = Math.floor((remH - 58) / tRowH);
+    data.schedule.slice(0, tMaxRows).forEach((row, i) => {
+      const ry = theadY + tRowH + i * tRowH;
+      if (ry + tRowH > cy + remH - 6) return;
+      const isPaid = s.paidInstallments.has(row.no);
+      if (i % 2 === 0) { ctx.fillStyle = COLORS.bg + 'aa'; rr(tx, ry, tw, tRowH, 2); ctx.fill(); }
+      if (isPaid) { ctx.fillStyle = COLORS.green + '18'; rr(tx, ry, tw, tRowH, 2); ctx.fill(); }
+      const vals = [
+        { t: row.no,                    a: 'center' },
+        { t: row.dueDate || '',         a: 'center' },
+        { t: fmt(row.principal),        a: 'right'  },
+        { t: fmt(row.interest),         a: 'right'  },
+        { t: fmt(row.total),            a: 'right'  },
+        { t: isPaid ? '✓' : '○',       a: 'center' },
+      ];
+      let vcx = tx;
+      vals.forEach((v, vi) => {
+        const cw = tw * cols[vi].w;
+        const color = vi === 5 ? (isPaid ? COLORS.green : COLORS.textMuted) : COLORS.textPrimary;
+        const ax = v.a === 'right' ? vcx + cw - 6 : v.a === 'center' ? vcx + cw / 2 : vcx + 4;
+        drawText(v.t, ax, ry + 5, 10, color, v.a);
+        vcx += cw;
+      });
+    });
+
+    // ── 5b. Interest chart ──
+    const ichX = pad + tbW + 8;
+    panel(ichX, cy, chW, remH);
+    drawText('ดอกเบี้ยสะสม & เบี้ยปรับสะสม', ichX + 10, cy + 10, 12, COLORS.white);
+
+    const iRows = data.recal.filter(r => r.interestAccum != null && r.payDate);
+    if (iRows.length >= 2) {
+      const pRows = data.recal.filter(r => r.penaltyAccum != null && r.penaltyAccum > 0 && r.payDate);
+      const igp = { t: 36, b: 32, l: 52, r: 12 };
+      const igw = chW - igp.l - igp.r, igh = remH - igp.t - igp.b;
+      const igx = ichX + igp.l, igy = cy + igp.t;
+      const maxI = Math.max(1, ...iRows.map(r => r.interestAccum));
+      const dates = iRows.map(r => r.payDate).sort();
+      const t0 = +new Date(dates[0]), span = Math.max(1, +new Date(dates[dates.length - 1]) - t0);
+      const toX = d => igx + ((+new Date(d) - t0) / span) * igw;
+      const toY = v => igy + igh - (v / maxI) * igh;
+
+      for (let i = 0; i <= 4; i++) {
+        const ly = igy + igh * (1 - i / 4);
+        ctx.strokeStyle = COLORS.gridLine; ctx.lineWidth = 0.5; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(igx, ly); ctx.lineTo(igx + igw, ly); ctx.stroke();
+        ctx.setLineDash([]);
+        drawText(fmt(maxI * i / 4, 0), igx - 4, ly - 5, 8, COLORS.textMuted, 'right');
+      }
+
+      // Area fill
+      ctx.beginPath();
+      iRows.forEach((r, i) => { i === 0 ? ctx.moveTo(toX(r.payDate), toY(r.interestAccum)) : ctx.lineTo(toX(r.payDate), toY(r.interestAccum)); });
+      ctx.lineTo(toX(iRows[iRows.length - 1].payDate), igy + igh);
+      ctx.lineTo(toX(iRows[0].payDate), igy + igh);
+      ctx.closePath(); ctx.fillStyle = COLORS.purple + '33'; ctx.fill();
+
+      // Interest line
+      ctx.beginPath();
+      iRows.forEach((r, i) => { i === 0 ? ctx.moveTo(toX(r.payDate), toY(r.interestAccum)) : ctx.lineTo(toX(r.payDate), toY(r.interestAccum)); });
+      ctx.strokeStyle = COLORS.purple; ctx.lineWidth = 2; ctx.stroke();
+
+      // Penalty line
+      if (pRows.length > 1) {
+        ctx.beginPath();
+        pRows.forEach((r, i) => { i === 0 ? ctx.moveTo(toX(r.payDate), toY(r.penaltyAccum)) : ctx.lineTo(toX(r.payDate), toY(r.penaltyAccum)); });
+        ctx.strokeStyle = COLORS.red; ctx.lineWidth = 2; ctx.stroke();
+      }
+
+      // Axes
+      ctx.strokeStyle = COLORS.panelBorder; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(igx, igy); ctx.lineTo(igx, igy + igh); ctx.lineTo(igx + igw, igy + igh); ctx.stroke();
+
+      // Legend
+      ctx.fillStyle = COLORS.purple; ctx.fillRect(ichX + chW - 110, cy + 16, 12, 3);
+      drawText('ดอกเบี้ย', ichX + chW - 94, cy + 11, 10, COLORS.textSecondary);
+      if (pRows.length > 1) {
+        ctx.fillStyle = COLORS.red; ctx.fillRect(ichX + chW - 56, cy + 16, 12, 3);
+        drawText('เบี้ยปรับ', ichX + chW - 40, cy + 11, 10, COLORS.textSecondary);
+      }
+
+      // X-axis date labels (first & last)
+      drawText(dates[0].slice(0, 7), igx, igy + igh + 6, 8, COLORS.textMuted);
+      drawText(dates[dates.length - 1].slice(0, 7), igx + igw, igy + igh + 6, 8, COLORS.textMuted, 'right');
+    } else {
+      drawText('ข้อมูลไม่เพียงพอสำหรับกราฟ', ichX + chW / 2, cy + remH / 2, 12, COLORS.textMuted, 'center');
+    }
   }
 
   return { render };
