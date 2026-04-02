@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>กยศ. Dashboard Workspace</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080e1a;
+    --grid: #0d1625;
+    --panel: #0f1b2d;
+    --border: #1a2d4a;
+    --accent: #2d7ef7;
+    --accent2: #4d9fff;
+    --gold: #f5a623;
+    --green: #27ae60;
+    --red: #e74c3c;
+    --purple: #8e44ad;
+    --teal: #1abc9c;
+    --text: #e8eaf0;
+    --text2: #8896aa;
+    --text3: #3a4a5e;
+    --titlebar: #0a1420;
+    --titlebar-border: #1e3050;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    font-family: 'Sarabun', sans-serif;
+    overflow: hidden;
+    color: var(--text);
+  }
+
+  /* dot grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: radial-gradient(circle, #1a2d4a 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  /* ─── Workspace ─── */
+  #workspace {
+    position: fixed; inset: 0;
+    overflow: hidden;
+  }
+
+  /* ─── Drop Overlay ─── */
+  #drop-overlay {
+    position: fixed; inset: 0;
+    background: rgba(8, 14, 26, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  #drop-overlay.visible { opacity: 1; pointer-events: all; }
+  #drop-overlay .drop-ring {
+    border: 2px dashed var(--accent);
+    border-radius: 24px;
+    width: min(480px, 90vw); padding: 64px 48px;
+    text-align: center;
+    animation: pulse-border 2s ease-in-out infinite;
+  }
+  @keyframes pulse-border {
+    0%, 100% { border-color: var(--accent); box-shadow: 0 0 0 0 #2d7ef722; }
+    50% { border-color: var(--accent2); box-shadow: 0 0 32px 8px #2d7ef718; }
+  }
+  .drop-icon { font-size: 52px; margin-bottom: 16px; }
+  .drop-title { font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+  .drop-sub { font-size: 13px; color: var(--text2); line-height: 1.7; }
+
+  /* ─── Toolbar ─── */
+  #toolbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 48px;
+    background: linear-gradient(180deg, #0a1420ee, #0a142000);
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px;
+    z-index: 500;
+    pointer-events: none;
+  }
+  #toolbar > * { pointer-events: all; }
+
+  .tb-logo {
+    font-size: 13px; font-weight: 700; color: var(--accent);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    white-space: nowrap;
+  }
+
+  .tb-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text); font-size: 12px; font-family: 'Sarabun', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: #162035; border-color: var(--accent); color: var(--accent2); }
+  .tb-btn .icon { font-size: 14px; }
+
+  #file-count {
+    font-size: 11px; color: var(--text2);
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+  }
+
+  #tile-btn { margin-left: auto; }
+
+  /* ─── Floating Window ─── */
+  .fwin {
+    position: absolute;
+    min-width: 480px; min-height: 360px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 0 0 0.5px #1a2d4a;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    transition: box-shadow 0.15s;
+    will-change: transform;
+  }
+  .fwin.focused {
+    border-color: #2d4a7a;
+    box-shadow: 0 32px 100px rgba(0,0,0,0.75), 0 0 0 1px #2d7ef744, 0 0 40px #2d7ef710;
+  }
+  .fwin.minimized .fwin-body { display: none; }
+  .fwin.minimized { min-height: 0; }
+
+  /* titlebar */
+  .fwin-title {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px;
+    height: 38px;
+    background: var(--titlebar);
+    border-bottom: 1px solid var(--titlebar-border);
+    cursor: grab;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .fwin-title:active { cursor: grabbing; }
+
+  .fwin-dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    flex-shrink: 0; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .fwin-dot:hover { opacity: 0.75; }
+  .dot-close { background: #ff5f57; }
+  .dot-min   { background: #febc2e; }
+  .dot-max   { background: #28c840; }
+
+  .fwin-name {
+    flex: 1; font-size: 12px; color: var(--text2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-align: center;
+  }
+  .fwin-name strong { color: var(--text); font-weight: 600; }
+
+  /* body */
+  .fwin-body {
+    flex: 1; overflow: hidden; position: relative;
+  }
+  .fwin-body canvas {
+    display: block;
+    width: 100%; height: 100%;
+  }
+
+  /* resize handle */
+  .fwin-resize {
+    position: absolute; right: 0; bottom: 0;
+    width: 18px; height: 18px;
+    cursor: nwse-resize;
+    z-index: 10;
+    display: flex; align-items: flex-end; justify-content: flex-end;
+    padding: 3px;
+  }
+  .fwin-resize::after {
+    content: '';
+    display: block;
+    width: 10px; height: 10px;
+    border-right: 2px solid var(--text3);
+    border-bottom: 2px solid var(--text3);
+    border-radius: 0 0 3px 0;
+  }
+
+  /* ─── Welcome hint ─── */
+  #welcome {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px; pointer-events: none;
+    transition: opacity 0.4s;
+  }
+  #welcome.hidden { opacity: 0; }
+  .wlc-ring {
+    width: 100px; height: 100px;
+    border: 2px dashed var(--border);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    animation: spin-slow 20s linear infinite;
+  }
+  @keyframes spin-slow { to { transform: rotate(360deg); } }
+  .wlc-title { font-size: 22px; font-weight: 600; color: var(--text2); }
+  .wlc-sub { font-size: 14px; color: var(--text3); text-align: center; line-height: 1.7; }
+
+  /* hidden file input */
+  #file-input { display: none; }
+</style>
+</head>
+<body>
+
+<!-- dot-grid workspace -->
+<div id="workspace"></div>
+
+<!-- Welcome screen -->
+<div id="welcome">
+  <div class="wlc-ring">📂</div>
+  <div class="wlc-title">กยศ. Dashboard Workspace</div>
+  <div class="wlc-sub">
+    ลาก .xlsx จาก กยศ. มาวางบนหน้าจอ<br/>
+    หรือคลิก <strong style="color:var(--accent)">+ เพิ่มไฟล์</strong> บน toolbar<br/>
+    <span style="color:var(--text3); font-size:12px; margin-top:4px; display:block">แต่ละไฟล์จะกลายเป็น window แยกกัน · ลาก · resize · ย่อ/ขยายได้</span>
+  </div>
+</div>
+
+<!-- Global drop overlay -->
+<div id="drop-overlay">
+  <div class="drop-ring">
+    <div class="drop-icon">📥</div>
+    <div class="drop-title">วางไฟล์ .xlsx ที่นี่</div>
+    <div class="drop-sub">แต่ละไฟล์จะเปิดเป็น window แยกใหม่<br/>รองรับหลายไฟล์พร้อมกัน</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <div class="tb-logo">⬡ กยศ.</div>
+  <button class="tb-btn" onclick="document.getElementById('file-input').click()">
+    <span class="icon">＋</span> เพิ่มไฟล์
+  </button>
+  <div id="file-count" style="display:none">0 บัญชี</div>
+  <button class="tb-btn" id="tile-btn" style="display:none" onclick="tileWindows()">
+    <span class="icon">⊞</span> จัดเรียง
+  </button>
+  <button class="tb-btn" id="closeall-btn" style="display:none" onclick="closeAll()" style="color:#e74c3c">
+    <span class="icon">✕</span> ปิดทั้งหมด
+  </button>
+</div>
+
+<input type="file" id="file-input" accept=".xlsx,.xls" multiple />
+
+<script type="module" src="./Dashboard.js"></script>
+</body>
+</html>
